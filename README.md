@@ -26,6 +26,7 @@ The software is very alpha - the project is very young and will likely see much 
 * Use a real database for persistence (PostgreSQL)
 * Add tests
 * Add documentation
+* Implement hashCode/equals for domain objects
 * ...
 
 # How to install
