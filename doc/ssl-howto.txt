@@ -1,0 +1,5 @@
+http://stackoverflow.com/questions/11617210/how-to-properly-import-a-selfsigned-certificate-into-java-keystore-that-is-avail
+
+echo -n | openssl s_client -connect www.mkmapi.eu:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > /tmp/mycert.crt
+openssl x509 -in /tmp/mycert.crt -text
+sudo keytool -import -trustcacerts -keystore /usr/lib/jvm/jdk1.7.0/jre/lib/security/cacerts -storepass changeit -noprompt -alias mycert -file /tmp/mycert.crt
