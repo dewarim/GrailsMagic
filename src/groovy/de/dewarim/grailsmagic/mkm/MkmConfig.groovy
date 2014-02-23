@@ -38,5 +38,9 @@ class MkmConfig {
      * TODO: implement maxItemAge
      */
     Date maxItemAge = null 
-    
+
+    /**
+     * 
+     */
+    Boolean downloadImages = false
 }

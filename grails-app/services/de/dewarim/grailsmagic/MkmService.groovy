@@ -1,5 +1,6 @@
 package de.dewarim.grailsmagic
 
+import com.google.common.io.ByteStreams
 import de.dewarim.grailsmagic.mkm.Address
 import de.dewarim.grailsmagic.mkm.Article
 import de.dewarim.grailsmagic.mkm.Language
@@ -9,6 +10,10 @@ import de.dewarim.grailsmagic.mkm.ProductName
 import de.dewarim.grailsmagic.mkm.UserEntity
 import grails.transaction.Transactional
 import groovyx.net.http.HTTPBuilder
+import org.apache.http.HttpResponse
+import org.apache.http.client.HttpClient
+import org.apache.http.client.methods.HttpGet
+import org.apache.http.impl.client.DefaultHttpClient
 
 import java.text.SimpleDateFormat
 
@@ -59,40 +64,62 @@ class MkmService {
         }
         return articles
     }
-    
-    def fetchProduct(config, id){
+
+    def fetchProduct(MkmConfig config, id) {
         def product = Product.findByProductId(id)
-        if(product){
-            return product
+        if (!product) {
+            def result = doRequest(config, "product/$id")
+            def xml = new XmlSlurper().parseText(result).product
+            product = new Product()
+            def params = [
+                    productId: Long.parseLong(xml.idProduct.text()),
+                    metaProductId: Long.parseLong(xml.idMetaproduct.text()),
+                    imagePath: xml.image.text(),
+                    expansion: xml.expansion.text(),
+                    rarity: xml.rarity.text(),
+            ]
+            product.properties = params
+            product.save()
+            parseNames(product, xml."name")
         }
-        def result = doRequest(config, "product/$id")
-        def xml = new XmlSlurper().parseText(result).product
-        product = new Product()
-        def params = [
-                productId: Long.parseLong(xml.idProduct.text()),
-                metaProductId: Long.parseLong(xml.idMetaproduct.text()),               
-                imagePath: xml.image.text(),
-                expansion: xml.expansion.text(),
-                rarity: xml.rarity.text(),                
-        ]
-        product.properties = params
-        product.save()
-        parseNames(product, xml."name")
+        if (config.downloadImages && product.image == null) {
+            product.image = fetchCardImage(product)
+        }
         return product
     }
-    
-    def parseNames(Product product, names){
-        names.each{
-            def pn = new ProductName(product: product, 
+
+    def fetchCardImage(Product product) {
+        def image = null
+        def url = "http://mkmapi.eu/${product.imagePath}"
+        log.debug("fetch image from: $url")
+        HttpGet req = new HttpGet(url)
+        HttpClient client = new DefaultHttpClient()
+        HttpResponse response = client.execute(req)
+        if (response.statusLine.statusCode == 200) {
+            InputStream inputStream = response.getEntity().getContent()
+            image = new CardImage(imageData: ByteStreams.toByteArray(inputStream),
+                    name: product.getOriginalName(),
+                    type: ImageType.JPEG,
+                    imageSize: ImageSize.SMALL
+            )
+
+            image.save()
+        }
+        return image
+    }
+
+    def parseNames(Product product, names) {
+        names.each {
+            def pn = new ProductName(product: product,
                     languageId: it.idLanguage.text(),
                     languageName: it.languageName.text(),
-                    name:it.productName.text()
+                    name: it.productName.text()
             )
             product.addToNames(pn)
             pn.save()
         }
     }
-    
+
     def fetchUserEntryById(config, id) {
         def user = UserEntity.findByUserId(id)
         // note: we always fetch the user - could be that the rating has changed.
@@ -110,7 +137,7 @@ class MkmService {
         def params = [userId: id,
                 username: xml.username.text(),
                 country: xml.country.text(),
-                commercial:Boolean.parseBoolean(xml.isCommercial.text()),
+                commercial: Boolean.parseBoolean(xml.isCommercial.text()),
                 riskGroup: Integer.parseInt(xml.riskGroup.text()),
                 reputation: Integer.parseInt(xml.reputation.text()),
                 firstName: xml."name"?.firstName?.text(),
@@ -118,12 +145,12 @@ class MkmService {
         ]
         if (!user) {
             user = new UserEntity(params)
-            user.save()            
+            user.save()
         }
-        else{
+        else {
             user.properties = params
         }
-        
+
     }
 
     def fetchUserEntry(node) {
@@ -177,7 +204,8 @@ class MkmService {
                 uri.query = [start: config.start]
             }
             uri.path = "/ws/${config.username}/${config.apiKey}/${command}"
-            headers.'User-Agent' = "Mozilla/5.0 Firefox/200"
+            log.debug("path: ${uri.path}")
+            headers.'User-Agent' = "Mozilla/5.0 Firefox/201"
             headers.Accept = 'application/xml'
 
             response.success = { resp, reader ->

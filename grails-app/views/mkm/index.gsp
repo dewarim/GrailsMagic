@@ -6,9 +6,10 @@
 
 <body>
 
-    <h1><g:message code="mkm.head"/> </h1>
-<p><g:message code="mkm.intro"/> </p>
-    <g:render template="/mkm/stock" model="[cards:cards]"/>
+<h1><g:message code="mkm.head"/></h1>
+
+<p><g:message code="mkm.intro"/></p>
+<g:render template="/mkm/stock" model="[cards: cards]"/>
 
 </body>
 </html>

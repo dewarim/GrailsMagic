@@ -8,11 +8,13 @@ class MkmController {
     def mkmService
 
     def index() {
-        def config = new MkmConfig(apiKey: grailsApplication.config.mkmApiKey,
-                userId: grailsApplication.config.mkmUserId,
-                username: grailsApplication.config.mkmUsername
+        def config = grailsApplication.config
+        def mkmConfig = new MkmConfig(apiKey: config.mkmApiKey,
+                userId: config.mkmUserId,
+                username: config.mkmUsername,
+                downloadImages: config.downloadImages 
         )
-        def stock = mkmService.getStock(config)
+        def stock = mkmService.getStock(mkmConfig)
         return [cards: stock]
     }
 

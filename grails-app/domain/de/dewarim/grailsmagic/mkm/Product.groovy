@@ -1,8 +1,11 @@
 package de.dewarim.grailsmagic.mkm
 
+import de.dewarim.grailsmagic.CardImage
+
 class Product {
 
     static constraints = {
+        image nullable: true
     }
     
     static hasMany = [names:ProductName, categories: ProductCategory, priceGuides:PriceGuide]
@@ -10,7 +13,18 @@ class Product {
     Long productId
     Long metaProductId     
     Date lastRefresh = new Date()
+    CardImage image
     String imagePath
     String expansion
     String rarity
+    
+    String getOriginalName(){
+        return names.find{
+            it.languageName == 'English'
+        }?.name
+    }
+    
+    String getCardImageName(){
+        return expansion+"_"+originalName
+    }
 }
