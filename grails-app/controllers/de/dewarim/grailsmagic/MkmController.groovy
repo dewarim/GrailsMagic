@@ -12,7 +12,9 @@ class MkmController {
         def mkmConfig = new MkmConfig(apiKey: config.mkmApiKey,
                 userId: config.mkmUserId,
                 username: config.mkmUsername,
-                downloadImages: config.downloadImages 
+                downloadImages: config.downloadImages,
+                fetchAll: true,
+                start:0                
         )
         def stock = mkmService.getStock(mkmConfig)
         return [cards: stock]

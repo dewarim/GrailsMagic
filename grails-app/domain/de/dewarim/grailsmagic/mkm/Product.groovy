@@ -6,6 +6,8 @@ class Product {
 
     static constraints = {
         image nullable: true
+        rarity blank: true
+        expansion blank: true
     }
     
     static hasMany = [names:ProductName, categories: ProductCategory, priceGuides:PriceGuide]

@@ -116,7 +116,9 @@ log4j = {
            'org.apache',
            'org.codehaus.groovy.grails.context.support',
            'org.grails.plugin',
-           'org.codehaus.groovy.grails.io'
+           'org.codehaus.groovy.grails.io',
+           'grails.plugin.cache.web.filter.simple.MemoryPageFragmentCachingFilter',
+           'grails.app.taglib.org.grails.plugin.resource'
     
     root{
         debug 'stdout'
