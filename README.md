@@ -23,10 +23,8 @@ The software is very alpha - the project is very young and will likely see much 
 (everything)
 
 * Implement data structures for all parts of the MKM API.
-* Use a real database for persistence (PostgreSQL)
 * Add tests
 * Add documentation
-* Implement hashCode/equals for domain objects
 * ...
 
 # How to install
@@ -35,7 +33,9 @@ The software is very alpha - the project is very young and will likely see much 
 
 You will need Java 7 (JDK) , Grails (from grails.org), a rudimentary understanding of Java [and Groovy].
 
-After installing Java and Grails, you can start a shell (on Windows: command line, start: cmd.exe), change to the project's directory and type 
+Install a database (see: doc/confiure-database.md for more info). PostgreSQL is recommended.
+
+After installing Java and Grails and configuring your database, you can start a shell (on Windows: command line, start: cmd.exe), change to the project's directory and type 
 
 	grails run-app
 
