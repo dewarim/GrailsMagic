@@ -11,13 +11,13 @@ In the database console:
 
 In GrailsMagic /grails-app/conf/DataSource.groovy, change settings to:
 
-    driverClassName = "org.postgres.Driver"
+    driverClassName = "org.postgresql.Driver"
     username = "mtg"
     password = "mtg"
 
 and change the connection url field in both development and production to:
 
-	url = "jdbc:postgres://localhost:5432/grails_magic"
+	url = "jdbc:postgresql://localhost:5432/grails_magic"
 
 In the same place, in BuildConfig.groovy, add
 
