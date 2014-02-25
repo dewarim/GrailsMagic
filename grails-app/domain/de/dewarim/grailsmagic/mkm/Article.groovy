@@ -26,5 +26,6 @@ class Article {
     Boolean playSet = false
     Boolean altered = false
     Boolean firstEd = false
+    ArticleStatus status = ArticleStatus.ONLINE
     
 }

@@ -3,6 +3,7 @@ package de.dewarim.grailsmagic
 import com.google.common.io.ByteStreams
 import de.dewarim.grailsmagic.mkm.Address
 import de.dewarim.grailsmagic.mkm.Article
+import de.dewarim.grailsmagic.mkm.ArticleStatus
 import de.dewarim.grailsmagic.mkm.Language
 import de.dewarim.grailsmagic.mkm.MkmConfig
 import de.dewarim.grailsmagic.mkm.Product
@@ -34,7 +35,7 @@ class MkmService {
 
     static final String dummyXml = "<empty/>"
 
-    List<Article> getStock(MkmConfig config) {
+    List<Article> updateStock(MkmConfig config) {
         def user = fetchUserEntryById(config, config.userId)
         def result = doRequest(config, "stock")
 //        log.debug("result: $result")
@@ -43,8 +44,11 @@ class MkmService {
         def dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss")
 //        def count = 0
 //        xml.article.findAll{count++ < 2}.each{node ->
+        Set currentArticleIdList = Article.executeQuery("select a.id from Article a where status =:onlineStatus",
+                [onlineStatus: ArticleStatus.ONLINE]).toSet()
+        log.debug("Current article list = ${currentArticleIdList.size()} articles.")
         xml.article.each { node ->
-            try {                
+            try {
                 def articleId = Long.parseLong(node.idArticle.text())
                 def article = Article.findByArticleId(articleId)
                 def params = [
@@ -59,8 +63,9 @@ class MkmService {
                         lastModified: dateFormat.parse(node.lastEdited.text())
                 ]
                 if (article) {
-                   log.debug("Found existing article, will update.")
+//                    log.debug("Found existing article, will update.")
                     article.properties = params
+                    currentArticleIdList.remove(article.id)
                 }
                 else {
                     log.debug("Found new article.")
@@ -75,12 +80,18 @@ class MkmService {
 //                throw new RuntimeException(e)
             }
         }
+        if (currentArticleIdList.size() > 0) {
+            Article.executeUpdate("update Article set status=:archiveStatus where id in (:idList)",
+                    [archiveStatus: ArticleStatus.ARCHIVE, idList: currentArticleIdList.toList()]
+            )
+        }
         return articles
     }
 
     def fetchProduct(MkmConfig config, id) {
         def product = Product.findByProductId(id)
         if (!product) {
+            log.debug("found new product $id")
             def result = doRequest(config, "product/$id")
             def xml = new XmlSlurper().parseText(result).product
             product = new Product()
@@ -95,7 +106,7 @@ class MkmService {
             product.save()
             parseNames(product, xml."name")
         }
-        else{
+        else {
             log.debug("Found existing product.")
         }
         if (config.downloadImages && product.image == null) {

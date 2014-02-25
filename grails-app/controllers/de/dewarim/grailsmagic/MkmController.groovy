@@ -16,7 +16,8 @@ class MkmController {
                 fetchAll: true,
                 start:0                
         )
-        def stock = mkmService.getStock(mkmConfig)
+        
+        def stock = mkmService.updateStock(mkmConfig)                    
         return [cards: stock]
     }
 
