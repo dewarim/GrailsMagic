@@ -15,8 +15,8 @@ The software is very alpha - the project is very young and will likely see much 
 
 ## Features
 
-* Fetch the first page of your cards from magickartenmarkt.de
-* Store data in a temporary database in RAM
+* Fetch your cards from magickartenmarkt.de
+* Store data along with images in a database.
 
 ## TODO
 
