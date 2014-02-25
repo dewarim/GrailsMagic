@@ -1,7 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <html>
 <head>
-    <title></title>
+    <title><g:message code="mkm.your.articles"/> </title>
 </head>
 
 <body>
