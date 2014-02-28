@@ -19,6 +19,11 @@
             <g:message code="link.to.links"/>
         </g:link>
     </li>
+    <li>
+        <g:link controller="cardImage" action="index">
+            <g:message code="link.to.cardImages"/>
+        </g:link>
+    </li>
 </ul>
 
 <footer>
