@@ -4,4 +4,6 @@ class PortalController {
 
     def index() {}
     
+    def links() {}
+    
 }
