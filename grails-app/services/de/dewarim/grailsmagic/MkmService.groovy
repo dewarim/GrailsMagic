@@ -4,6 +4,7 @@ import com.google.common.io.ByteStreams
 import de.dewarim.grailsmagic.mkm.Address
 import de.dewarim.grailsmagic.mkm.Article
 import de.dewarim.grailsmagic.mkm.ArticleStatus
+import de.dewarim.grailsmagic.mkm.Game
 import de.dewarim.grailsmagic.mkm.Language
 import de.dewarim.grailsmagic.mkm.MkmConfig
 import de.dewarim.grailsmagic.mkm.Product
@@ -294,5 +295,21 @@ class MkmService {
         DOMSource source = new DOMSource(doc);
         transformer.transform(source, result);
         return result.getWriter().toString();
+    }
+
+    List<Game> getGames(config) {
+        def result = doRequest(config, "games")
+        def xml = new XmlSlurper().parseText(result)
+        def games = []
+        xml.game.each { node ->
+            def gameId = node.idGame.text()
+            def game = Game.findByGameId(gameId)
+            if (!game) {
+                game = new Game(gameId: Long.valueOf(gameId), name: node.name.text())
+                game.save()
+            }
+            games.add(game)
+        }
+        return games
     }
 }
