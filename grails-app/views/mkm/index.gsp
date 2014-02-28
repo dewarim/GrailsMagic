@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <html>
 <head>
+    <meta name="layout" content="main">
     <title><g:message code="mkm.your.articles"/></title>
 </head>
 
@@ -21,5 +22,9 @@
     </li>
 </ul>
 
+<h2><g:message code="mkm.supported.games"/></h2>
+<div id="mkm-game-list">
+    <g:render template="games" model="[games:games]"/>
+</div>
 </body>
 </html>
