@@ -7,6 +7,7 @@ import de.dewarim.grailsmagic.mkm.ArticleStatus
 import de.dewarim.grailsmagic.mkm.Game
 import de.dewarim.grailsmagic.mkm.Language
 import de.dewarim.grailsmagic.mkm.MkmConfig
+import de.dewarim.grailsmagic.mkm.PriceGuide
 import de.dewarim.grailsmagic.mkm.Product
 import de.dewarim.grailsmagic.mkm.ProductName
 import de.dewarim.grailsmagic.mkm.UserEntity
@@ -105,6 +106,15 @@ class MkmService {
             ]
             product.properties = params
             product.save()
+            xml.priceGuide.each{guide ->                
+                def priceGuide = new PriceGuide(product: product, 
+                        sell: guide.SELL.text(),
+                        low: guide.LOW.text(),
+                        average:guide.AVG.text()
+                )
+                product.addToPriceGuides(priceGuide)
+                priceGuide.save()
+            }
             parseNames(product, xml."name")
         }
         else {
@@ -235,20 +245,19 @@ class MkmService {
         def result = dummyXml
         http.request('https://www.mkmapi.eu/', GET, TEXT) { req ->
             uri.path = "/ws/${config.username}/${config.apiKey}/${command}"
-            if (config.start && partialCommands.contains(command)) {
+            if (config.start && partialCommands.find{ command.startsWith(it)}) {
                 uri.path = "${uri.path}/${config.start}"
             }
             log.debug("path: ${uri.path}")
             headers.'User-Agent' = "Mozilla/5.0 Firefox/201"
             headers.Accept = 'application/xml'
-
+            
             response.success = { resp, reader ->
 
                 result = reader.text
                 log.debug "Got response: ${resp.statusLine}"
                 log.debug "Content-Type: ${resp.headers.'Content-Type'}"
 //                log.debug result
-
                 if (resp.statusLine.statusCode == 206 && config.fetchAll) {
                     def rangeHeader = resp.headers."Range"
                     def range = rangeHeader.split('/')
@@ -311,5 +320,25 @@ class MkmService {
             games.add(game)
         }
         return games
+    }
+    
+    // GET products/:searchString/:idGame/:idLanguage/:exact[/:start] 
+    def searchForProducts(MkmConfig config, query, gameId, languageId, exactMatch){
+        def command = "products/$query/$gameId/$languageId/$exactMatch"
+        config.fetchAll = true
+        def result = doRequest(config, command)
+        def xml = new XmlSlurper().parseText(result)
+        log.debug("result:\n $result")
+        def products = []
+        xml.product?.each{ prod ->
+            def id = prod.idProduct?.text()
+            if(id){
+                def product = fetchProduct(config, id )
+                if(product){
+                    products.add(product)
+                }
+            }
+        }
+        return products
     }
 }

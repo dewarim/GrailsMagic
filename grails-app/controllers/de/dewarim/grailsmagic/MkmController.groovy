@@ -41,5 +41,13 @@ class MkmController {
                 start:0
         )
     }
+    
+    def doSearch(String query, Long gameId, Long languageId, Boolean exactMatch){
+        def config = createConfig(grailsApplication.config)
+        exactMatch = exactMatch != null ? exactMatch : false
+        
+        def products = mkmService.searchForProducts(config, query, gameId, languageId, exactMatch)
+        render(template: 'products', model: [products: products])        
+    }
 
 }
