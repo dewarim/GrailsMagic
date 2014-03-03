@@ -47,6 +47,29 @@
     <g:submitButton name="doSearch" value="${message(code: 'doSearch')}" />
 </g:formRemote>
 
+<hr>
+<h3><g:message code="mkm.search.meta.product"/> </h3>
+<g:formRemote name="mkm-meta-product-search" url="[controller:'mkm', action:'doSearchMeta']" update="mkm-product-list">
+    <label for="gameId2">
+        <g:message code="mkm.game"/>
+    </label>
+
+
+    <g:select id="gameId2" name="gameId" from="${Game.list()}" optionKey="gameId" optionValue="${{it.name}}"/>
+  
+    <label for="languageId2">
+        <g:message code="mkm.language"/>
+    </label>
+    <g:select id="languageId2" name="languageId" from="${Language.list()}" optionKey="idLanguage" optionValue="${{it.languageName}}"/>
+    <br>
+
+
+
+    <g:textField id="query2" name="query" placeholder="${message(code: 'mkm.query')}"/>
+    <g:submitButton id="doSearchMetaProduct" name="doSearch" value="${message(code: 'doSearch')}" />
+</g:formRemote>
+<hr>
+
 <div id="mkm-product-list">
 
 </div>

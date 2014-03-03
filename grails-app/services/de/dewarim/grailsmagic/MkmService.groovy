@@ -6,6 +6,8 @@ import de.dewarim.grailsmagic.mkm.Article
 import de.dewarim.grailsmagic.mkm.ArticleStatus
 import de.dewarim.grailsmagic.mkm.Game
 import de.dewarim.grailsmagic.mkm.Language
+import de.dewarim.grailsmagic.mkm.MetaProduct
+import de.dewarim.grailsmagic.mkm.MetaProductName
 import de.dewarim.grailsmagic.mkm.MkmConfig
 import de.dewarim.grailsmagic.mkm.PriceGuide
 import de.dewarim.grailsmagic.mkm.Product
@@ -99,7 +101,7 @@ class MkmService {
             product = new Product()
             def params = [
                     productId: Long.parseLong(xml.idProduct.text()),
-                    metaProductId: Long.parseLong(xml.idMetaproduct?.text() ?: '0'),
+                    metaProduct: fetchMetaProduct(config, Long.parseLong(xml.idMetaproduct?.text() ?: '0')),
                     imagePath: xml.image?.text() ?: '',
                     expansion: xml.expansion?.text() ?: '-',
                     rarity: xml.rarity?.text() ?: '-',
@@ -128,6 +130,24 @@ class MkmService {
         return product
     }
 
+    def fetchMetaProduct(MkmConfig config, id){
+        def metaProduct = MetaProduct.findByMetaProductId(id)
+        if(!metaProduct){
+            log.debug("Found new MetaPropduct")
+            def result = doRequest(config, "metaproduct/$id")
+            log.debug("result: \n$result")
+            def xml = new XmlSlurper().parseText(result).metaproduct            
+            def metaProductId = Long.parseLong(xml.idMetaproduct.text())
+            metaProduct = new MetaProduct(metaProductId: metaProductId)
+            metaProduct.save()
+            parseMetaNames(metaProduct, xml."name")
+            xml.products.idProduct.each{
+                fetchProduct(config, it.text())
+            }
+        }
+        return metaProduct
+    }
+    
     def fetchCardImage(Product product) {
         def image = null
         def url = "http://mkmapi.eu/${product.imagePath?.replaceAll('^\\./', '')}"
@@ -151,6 +171,18 @@ class MkmService {
         return image
     }
 
+    def parseMetaNames(MetaProduct product, names) {
+        names.each {
+            def pn = new MetaProductName(metaProduct: product,
+                    languageId: it.idLanguage.text(),
+                    languageName: it.languageName.text(),
+                    name: it.metaproductName.text()
+            )
+            product.addToNames(pn)
+            pn.save()
+        }
+    }
+    
     def parseNames(Product product, names) {
         names.each {
             def pn = new ProductName(product: product,
@@ -340,5 +372,22 @@ class MkmService {
             }
         }
         return products
+    }
+
+    // GET products/:searchString/:idGame/:idLanguage/:exact[/:start] 
+    def searchForMetaProducts(MkmConfig config, query, gameId, languageId){
+        def command = "metaproduct/$query/$gameId/$languageId"
+        config.fetchAll = true
+        def result = doRequest(config, command)
+        def xml = new XmlSlurper().parseText(result)
+        log.debug("result:\n $result")
+        MetaProduct metaProduct = null
+        xml.metaproduct?.each{ prod ->
+            def id = prod.idMetaproduct?.text()
+            if(id){
+                metaProduct = fetchMetaProduct(config, id )
+            }
+        }
+        return metaProduct
     }
 }

@@ -49,5 +49,11 @@ class MkmController {
         def products = mkmService.searchForProducts(config, query, gameId, languageId, exactMatch)
         render(template: 'products', model: [products: products])        
     }
+    
+    def doSearchMeta(String query, Long gameId, Long languageId){
+        def config = createConfig(grailsApplication.config)
+        def metaProduct = mkmService.searchForMetaProducts(config, query, gameId, languageId)
+        render(template: 'products', model: [products: metaProduct.fetchProducts()])        
+    }
 
 }

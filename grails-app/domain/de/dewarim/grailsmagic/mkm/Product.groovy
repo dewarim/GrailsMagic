@@ -8,12 +8,13 @@ class Product {
         image nullable: true
         rarity blank: true
         expansion blank: true
+        metaProduct nullable: true
     }
     
     static hasMany = [names:ProductName, categories: ProductCategory, priceGuides:PriceGuide]
     
     Long productId
-    Long metaProductId     
+    MetaProduct metaProduct
     Date lastRefresh = new Date()
     CardImage image
     String imagePath
