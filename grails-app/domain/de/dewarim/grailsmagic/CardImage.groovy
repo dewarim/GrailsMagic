@@ -16,5 +16,22 @@ class CardImage {
     String name    
     ImageType type
     ImageSize imageSize
-    
+
+    boolean equals(o) {
+        if (this.is(o)) return true
+        if (!(o instanceof CardImage)) return false
+
+        CardImage cardImage = (CardImage) o
+
+        if (!Arrays.equals(imageData, cardImage.imageData)) return false
+        if (imageSize != cardImage.imageSize) return false
+        if (name != cardImage.name) return false
+        if (type != cardImage.type) return false
+
+        return true
+    }
+
+    int hashCode() {
+        return name.hashCode()
+    }
 }

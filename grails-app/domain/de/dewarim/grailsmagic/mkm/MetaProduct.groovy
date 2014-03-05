@@ -18,4 +18,19 @@ class MetaProduct {
     List<Product> fetchProducts(){
         return Product.findAllByMetaProduct(this)
     }
+
+    boolean equals(o) {
+        if (this.is(o)) return true
+        if (!(o instanceof MetaProduct)) return false
+
+        MetaProduct that = (MetaProduct) o
+
+        if (metaProductId != that.metaProductId) return false
+
+        return true
+    }
+
+    int hashCode() {
+        return metaProductId.hashCode()
+    }
 }
