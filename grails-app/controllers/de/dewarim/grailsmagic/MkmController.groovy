@@ -55,5 +55,17 @@ class MkmController {
         def metaProduct = mkmService.searchForMetaProducts(config, query, gameId, languageId)
         render(template: 'products', model: [products: metaProduct.fetchProducts()])        
     }
+    
+    def doSearchArticles(String query, Long gameId, Long languageId, Boolean exactMatch){
+        def config = createConfig(grailsApplication.config)
+        exactMatch = exactMatch != null ? exactMatch : false
+        languageId = languageId != null ? languageId : 1
+        def products = mkmService.searchForProducts(config, query, gameId, languageId, exactMatch)
+        def articles = []
+        products.each{ product ->
+            articles.addAll(mkmService.fetchArticlesByProductId(config, product.productId, false))
+        }
+        render(template: 'stock', model:[cards:articles])
+    }
 
 }

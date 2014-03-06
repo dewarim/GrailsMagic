@@ -38,52 +38,17 @@ import static groovyx.net.http.Method.GET
 class MkmService {
 
     static final String dummyXml = "<empty/>"
+    static final dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss")
 
     List<Article> updateStock(MkmConfig config) {
         def user = fetchUserEntryById(config, config.userId)
         def result = doRequest(config, "stock")
-//        log.debug("result: $result")
+        log.debug("result: $result")
         def xml = new XmlSlurper().parseText(result)
-        def articles = []
-        def dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss")
-//        def count = 0
-//        xml.article.findAll{count++ < 2}.each{node ->
-        Set currentArticleIdList = Article.executeQuery("select a.id from Article a where status =:onlineStatus",
-                [onlineStatus: ArticleStatus.ONLINE]).toSet()
-        log.debug("Current article list = ${currentArticleIdList.size()} articles.")
-        xml.article.each { node ->
-            try {
-                def articleId = Long.parseLong(node.idArticle.text())
-                def article = Article.findByArticleId(articleId)
-                def params = [
-                        product: fetchProduct(config, Long.parseLong(node.idProduct.text())),
-                        language: fetchLanguage(node.language),
-                        comments: node.comments?.text(),
-                        price: Integer.parseInt(node.price.text().replaceAll('\\.', '')),
-                        count: Integer.parseInt(node.count.text()),
-                        condition: node.condition?.text() ?: '-',
-                        seller: user,
-                        articleId: articleId,
-                        lastModified: dateFormat.parse(node.lastEdited.text())
-                ]
-                if (article) {
-//                    log.debug("Found existing article, will update.")
-                    article.properties = params
-                    currentArticleIdList.remove(article.id)
-                }
-                else {
-                    log.debug("Found new article.")
-                    article = new Article(params)
-                }
-                article.save()
-//                log.debug("article: ${article.dump()}")
-                articles.add(article)
-            }
-            catch (Exception e) {
-                log.error("Failed to download article: ", e)
-//                throw new RuntimeException(e)
-            }
-        }
+        Set currentArticleIdList = Article.executeQuery("select a.id from Article a where seller=:seller and status =:onlineStatus",
+                [onlineStatus: ArticleStatus.ONLINE, seller: user]).toSet()
+        log.debug("Current user's article list = ${currentArticleIdList.size()} articles.")
+        def articles = parseArticles(config, xml, currentArticleIdList, user)
         if (currentArticleIdList.size() > 0) {
             Article.executeUpdate("update Article set status=:archiveStatus where id in (:idList)",
                     [archiveStatus: ArticleStatus.ARCHIVE, idList: currentArticleIdList.toList()]
@@ -108,11 +73,11 @@ class MkmService {
             ]
             product.properties = params
             product.save()
-            xml.priceGuide.each{guide ->                
-                def priceGuide = new PriceGuide(product: product, 
+            xml.priceGuide.each { guide ->
+                def priceGuide = new PriceGuide(product: product,
                         sell: guide.SELL.text(),
                         low: guide.LOW.text(),
-                        average:guide.AVG.text()
+                        average: guide.AVG.text()
                 )
                 product.addToPriceGuides(priceGuide)
                 priceGuide.save()
@@ -130,24 +95,24 @@ class MkmService {
         return product
     }
 
-    def fetchMetaProduct(MkmConfig config, id){
+    def fetchMetaProduct(MkmConfig config, id) {
         def metaProduct = MetaProduct.findByMetaProductId(id)
-        if(!metaProduct){
+        if (!metaProduct) {
             log.debug("Found new MetaPropduct")
             def result = doRequest(config, "metaproduct/$id")
             log.debug("result: \n$result")
-            def xml = new XmlSlurper().parseText(result).metaproduct            
+            def xml = new XmlSlurper().parseText(result).metaproduct
             def metaProductId = Long.parseLong(xml.idMetaproduct.text())
             metaProduct = new MetaProduct(metaProductId: metaProductId)
             metaProduct.save()
             parseMetaNames(metaProduct, xml."name")
-            xml.products.idProduct.each{
+            xml.products.idProduct.each {
                 fetchProduct(config, it.text())
             }
         }
         return metaProduct
     }
-    
+
     def fetchCardImage(Product product) {
         def image = null
         def url = "http://mkmapi.eu/${product.imagePath?.replaceAll('^\\./', '')}"
@@ -182,7 +147,7 @@ class MkmService {
             pn.save()
         }
     }
-    
+
     def parseNames(Product product, names) {
         names.each {
             def pn = new ProductName(product: product,
@@ -200,18 +165,14 @@ class MkmService {
         // note: we always fetch the user - could be that the rating has changed.
         def result = doRequest(config, "user/$id")
         if (result.equals(dummyXml)) {
-            if (user) {
-                return user
-            }
-            user = new UserEntity(username: '--unknown user--')
-            user.save()
-            return user
+            log.debug("User with id $id was not found.")
+            return user ?: getUnknownUser()
         }
         def xml = new XmlSlurper().parseText(result).user
         def params = [userId: id,
                 username: xml.username.text(),
                 country: xml.country.text(),
-                commercial: Boolean.parseBoolean(xml.isCommercial.text()),
+                commercial: Boolean.parseBoolean(xml.isCommercial.text() ?: 'false'),
                 riskGroup: Integer.parseInt(xml.riskGroup.text()),
                 reputation: Integer.parseInt(xml.reputation.text()),
                 firstName: xml."name"?.firstName?.text(),
@@ -223,6 +184,24 @@ class MkmService {
         else {
             user = new UserEntity(params)
         }
+        if (user.validate()) {
+            user.save()
+            return user
+        }
+        else {
+            log.debug("problem persisting user $user")
+            return null
+        }
+    }
+
+    def getUnknownUser() {
+        def user = UserEntity.findByUsername('--unknown user--')
+        if (user) {
+            return user
+        }
+        user = new UserEntity(username: '--unknown user--',
+                commercial: false, country: '--', riskGroup: 0, reputation: 0,
+                userId: 0)
         user.save()
         return user
     }
@@ -277,13 +256,13 @@ class MkmService {
         def result = dummyXml
         http.request('https://www.mkmapi.eu/', GET, TEXT) { req ->
             uri.path = "/ws/${config.username}/${config.apiKey}/${command}"
-            if (config.start && partialCommands.find{ command.startsWith(it)}) {
+            if (config.start && partialCommands.find { command.startsWith(it) }) {
                 uri.path = "${uri.path}/${config.start}"
             }
             log.debug("path: ${uri.path}")
             headers.'User-Agent' = "Mozilla/5.0 Firefox/201"
             headers.Accept = 'application/xml'
-            
+
             response.success = { resp, reader ->
 
                 result = reader.text
@@ -353,20 +332,20 @@ class MkmService {
         }
         return games
     }
-    
+
     // GET products/:searchString/:idGame/:idLanguage/:exact[/:start] 
-    def searchForProducts(MkmConfig config, query, gameId, languageId, exactMatch){
+    List<Product> searchForProducts(MkmConfig config, query, gameId, languageId, exactMatch) {
         def command = "products/$query/$gameId/$languageId/$exactMatch"
         config.fetchAll = true
         def result = doRequest(config, command)
         def xml = new XmlSlurper().parseText(result)
         log.debug("result:\n $result")
         def products = []
-        xml.product?.each{ prod ->
+        xml.product?.each { prod ->
             def id = prod.idProduct?.text()
-            if(id){
-                def product = fetchProduct(config, id )
-                if(product){
+            if (id) {
+                def product = fetchProduct(config, id)
+                if (product) {
                     products.add(product)
                 }
             }
@@ -375,19 +354,80 @@ class MkmService {
     }
 
     // GET products/:searchString/:idGame/:idLanguage/:exact[/:start] 
-    def searchForMetaProducts(MkmConfig config, query, gameId, languageId){
+    def searchForMetaProducts(MkmConfig config, query, gameId, languageId) {
         def command = "metaproduct/$query/$gameId/$languageId"
         config.fetchAll = true
         def result = doRequest(config, command)
         def xml = new XmlSlurper().parseText(result)
         log.debug("result:\n $result")
         MetaProduct metaProduct = null
-        xml.metaproduct?.each{ prod ->
+        xml.metaproduct?.each { prod ->
             def id = prod.idMetaproduct?.text()
-            if(id){
-                metaProduct = fetchMetaProduct(config, id )
+            if (id) {
+                metaProduct = fetchMetaProduct(config, id)
             }
         }
         return metaProduct
+    }
+
+    /**
+     * Fetch a list of offers for a specific product.
+     * @param config config object which includes the mcm api key.
+     * @param productId the id of the product (magic card)
+     * @param doFetchAll if set to true, will fetch all offers. Otherwise, fetch
+     * only the first 100. Note: this method ignores config.fetchAll, because 
+     * generally it's not useful to fetch all 1000 offers on a random magic card.
+     * @return list of articles
+     */
+    List<Article> fetchArticlesByProductId(MkmConfig config, productId, doFetchAll) {
+        def command = "articles/$productId"
+        config.fetchAll = doFetchAll ?: false
+        def result = doRequest(config, command)
+        def xml = new XmlSlurper().parseText(result)
+        def articles = parseArticles(config, xml, null, null)
+        log.debug("getArticlesByProductId found ${articles.size()}")
+        return articles
+    }
+
+    List<Article> parseArticles(MkmConfig config, xml, updateableArticleList, cardOwner) {
+        def articles = []
+        xml.article.each { node ->
+            try {
+                def articleId = Long.parseLong(node.idArticle.text())
+                def article = Article.findByArticleId(articleId)
+                def params = [
+                        product: fetchProduct(config, Long.parseLong(node.idProduct.text())),
+                        language: fetchLanguage(node.language),
+                        comments: node.comments?.text(),
+                        price: Integer.parseInt(node.price.text().replaceAll('\\.', '')),
+                        count: Integer.parseInt(node.count.text()),
+                        condition: node.condition?.text() ?: '-',
+                        seller: cardOwner ?: fetchUserEntryById(config, node.seller?.idUser?.text()),
+                        articleId: articleId                 
+                ]
+                if(   node.lastEdited?.text() ){
+                    params.put('lastModified', dateFormat.parse(node.lastEdited?.text()))
+                }
+                if (article) {
+//                    log.debug("Found existing article, will update.")
+                    article.properties = params
+                    if (updateableArticleList) {
+                        updateableArticleList.remove(article.id)
+                    }
+                }
+                else {
+                    log.debug("Found new article.")
+                    article = new Article(params)
+                }
+                article.save()
+//                log.debug("article: ${article.dump()}")
+                articles.add(article)
+            }
+            catch (Exception e) {
+                log.error("Failed to download article: ", e)
+                throw new RuntimeException(e)
+            }
+        }
+        return articles
     }
 }

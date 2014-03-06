@@ -19,7 +19,7 @@ class Article {
     Integer price
     Integer count
     UserEntity seller
-    Date lastModified
+    Date lastModified = new Date()
     String condition
     Boolean foil = false
     Boolean signed = false
