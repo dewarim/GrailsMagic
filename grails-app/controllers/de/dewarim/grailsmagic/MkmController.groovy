@@ -18,7 +18,8 @@ class MkmController {
     }
     
     def index() {
-        [games:Game.list()]
+        def mkmConfig = createConfig(grailsApplication.config)
+        [games:Game.list(), missingApiKey: mkmConfig.apiKey == null]
     }
     
     def showStock(){
@@ -32,8 +33,9 @@ class MkmController {
         render(template: 'games', model: [games:games])
     }
     
-    static protected createConfig(config){
-        return new MkmConfig(apiKey: config.mkmApiKey,
+    protected createConfig(config){
+        def apiKey = config.mkmApiKey ?: session.apiKey
+        return new MkmConfig(apiKey: apiKey,
                 userId: config.mkmUserId,
                 username: config.mkmUsername,
                 downloadImages: config.downloadImages,

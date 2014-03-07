@@ -8,7 +8,11 @@
 <body>
 
 <h1><g:message code="mkm.head"/></h1>
-
+<g:if test="${missingApiKey}">
+    <div class="errors">
+        <g:message code="mkm.missing.apiKey"/>    
+    </div>
+</g:if>
 <ul>
     <li>
         <g:link controller="mkm" action="updateStock">
