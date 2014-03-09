@@ -3,7 +3,8 @@
 // in the classpath in ConfigSlurper format
 
 grails.config.locations = [  "classpath:${appName}-config.groovy",
-                             "file:${userHome}/.grails/${appName}-config.groovy"]
+                             "file:${userHome}/.grails/${appName}-config.groovy",
+                             "file:/home/magic/Desktop/${appName}-config.groovy"]
 
 // if (System.properties["${appName}.config.location"]) {
 //    grails.config.locations << "file:" + System.properties["${appName}.config.location"]
