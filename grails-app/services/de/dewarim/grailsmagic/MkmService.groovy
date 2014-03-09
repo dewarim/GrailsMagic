@@ -6,13 +6,18 @@ import de.dewarim.grailsmagic.mkm.Article
 import de.dewarim.grailsmagic.mkm.ArticleStatus
 import de.dewarim.grailsmagic.mkm.Game
 import de.dewarim.grailsmagic.mkm.Language
+import de.dewarim.grailsmagic.mkm.orders.Evaluation
+import de.dewarim.grailsmagic.mkm.orders.McmOrder
 import de.dewarim.grailsmagic.mkm.MetaProduct
 import de.dewarim.grailsmagic.mkm.MetaProductName
 import de.dewarim.grailsmagic.mkm.MkmConfig
+import de.dewarim.grailsmagic.mkm.orders.OrderArticle
+import de.dewarim.grailsmagic.mkm.orders.OrderStatus
 import de.dewarim.grailsmagic.mkm.PriceGuide
 import de.dewarim.grailsmagic.mkm.Product
 import de.dewarim.grailsmagic.mkm.ProductName
 import de.dewarim.grailsmagic.mkm.UserEntity
+import de.dewarim.grailsmagic.mkm.orders.ShippingMethod
 import grails.transaction.Transactional
 import groovyx.net.http.HTTPBuilder
 import org.apache.http.HttpResponse
@@ -75,9 +80,9 @@ class MkmService {
             product.save()
             xml.priceGuide.each { guide ->
                 def priceGuide = new PriceGuide(product: product,
-                        sell: guide.SELL.text(),
-                        low: guide.LOW.text(),
-                        average: guide.AVG.text()
+                        sell: priceToInt(guide.SELL.text()),
+                        low: priceToInt(guide.LOW.text()),
+                        average: priceToInt(guide.AVG.text())
                 )
                 product.addToPriceGuides(priceGuide)
                 priceGuide.save()
@@ -169,21 +174,11 @@ class MkmService {
             return user ?: getUnknownUser()
         }
         def xml = new XmlSlurper().parseText(result).user
-        def params = [userId: id,
-                username: xml.username.text(),
-                country: xml.country.text(),
-                commercial: Boolean.parseBoolean(xml.isCommercial.text() ?: 'false'),
-                riskGroup: Integer.parseInt(xml.riskGroup.text()),
-                reputation: Integer.parseInt(xml.reputation.text()),
-                firstName: xml."name"?.firstName?.text(),
-                lastName: xml."name"?.lastName?.text()
-        ]
-        if (user) {
-            user.properties = params
-        }
-        else {
+        def params = parseUserNode(xml, user)
+        if (!user) {
             user = new UserEntity(params)
         }
+        user.properties = params
         if (user.validate()) {
             user.save()
             return user
@@ -192,6 +187,27 @@ class MkmService {
             log.debug("problem persisting user $user")
             return null
         }
+    }
+
+    def parseUserNode(xml, user) {
+        def params = [userId: xml.idUser.text(),
+                username: xml.username.text(),
+                country: xml.country.text(),
+                commercial: Boolean.parseBoolean(xml.isCommercial.text() ?: 'false'),
+                riskGroup: Integer.parseInt(xml.riskGroup.text()),
+                reputation: Integer.parseInt(xml.reputation.text()),
+                firstName: xml."name"?.firstName?.text(),
+                lastName: xml."name"?.lastName?.text()
+        ]
+        // do not update name with null value.
+        // This may happen if browsing unknown user profiles before buying from this user.
+        if (user?.firstName && params.firstName == null) {
+            params.remove('firstName')
+        }
+        if (user?.lastName && params.lastName == null) {
+            params.remove('lastName')
+        }
+        return params
     }
 
     def getUnknownUser() {
@@ -208,16 +224,8 @@ class MkmService {
 
     def fetchUserEntry(node) {
         def id = Long.parseLong(node.idUser.text())
-        def params = [username: node.username.text(),
-                country: node.country.text(),
-                commercial: Boolean.parseBoolean(node.isCommercial.text()),
-                riskGroup: Integer.parseInt(node.riskGroup.text()),
-                reputation: Integer.parseInt(node.reputation.text()),
-                firstName: node.name?.firstName?.text() ?: '',
-                lastName: node.name?.lastName?.text() ?: '',
-                address: fetchAddress(node.address)
-        ]
         def user = UserEntity.findByUserId(id)
+        def params = parseUserNode(node, user)
         if (!user) {
             user = new UserEntity(params)
             user.save()
@@ -403,9 +411,14 @@ class MkmService {
                         count: Integer.parseInt(node.count.text()),
                         condition: node.condition?.text() ?: '-',
                         seller: cardOwner ?: fetchUserEntryById(config, node.seller?.idUser?.text()),
-                        articleId: articleId                 
+                        foil: node.isFoil?.text() == 'true',
+                        playSet: node.isPlayset?.text() == 'true',
+                        altered: node.isAltered?.text() == 'true',
+                        signed: node.isSigned?.text() == 'true',
+                        firstEd: node.isFirstEd?.text() == 'true',
+                        articleId: articleId
                 ]
-                if(   node.lastEdited?.text() ){
+                if (node.lastEdited?.text()) {
                     params.put('lastModified', dateFormat.parse(node.lastEdited?.text()))
                 }
                 if (article) {
@@ -430,4 +443,115 @@ class MkmService {
         }
         return articles
     }
+
+    def fetchOrders(MkmConfig config, actor, OrderStatus status) {
+        def command = "orders/$actor/${status.state}"
+        def result = doRequest(config, command)
+        log.debug("result:\n$result")
+        def xml = new XmlSlurper().parseText(result)
+        def orders = []
+        xml.order.each { orderNode ->
+            def orderId = Long.valueOf(orderNode.idOrder.text())
+            def existingOrder = McmOrder.findByOrderId(orderId)
+            log.debug("existingOrder: ${existingOrder}")
+            def newOrder = new McmOrder(orderId: orderId)
+            def buyer = fetchUserEntry(orderNode.buyer)
+            def seller = fetchUserEntry(orderNode.seller)
+            def params = [
+                    orderId: orderId,
+                    seller: seller,
+                    buyer: buyer,
+                    shippingMethod: parseShippingMethod(orderNode.shippingMethod),
+                    evaluation: parseEvaluation(existingOrder, orderNode.evaluation),
+                    articleValue: priceToInt(orderNode.articleValue.text()),
+                    totalValue: priceToInt(orderNode.totalValue.text()),
+            ]
+            newOrder.properties = params
+            updateOrderStateFromNode(newOrder, orderNode)
+            McmOrder order
+            if (existingOrder) {
+                if (!newOrder.equals(existingOrder)) {
+                    existingOrder.properties = params
+                }
+                order = existingOrder
+            }
+            else {
+                newOrder.save()
+                order = newOrder
+            }
+            // assumption: articles on a given order do not change.
+            def articles = parseArticles(config, orderNode, null, order.seller)
+            articles.each { article ->
+                def orderArticle = new OrderArticle(article: article, mcmOrder: order)
+                order.addToOrderArticles(orderArticle)
+                orderArticle.save()
+                if(order.status != order.cancelled){
+                    article.status = ArticleStatus.OFFLINE // has been sold
+                }
+            }
+            orders.add(order)
+        }
+        return orders
+    }
+
+    /**
+     * Parse the state of an orderNode and update the order object accordingly.
+     * @param order the oder object to be updated with state (paid, bought, sent etc plus date)
+     * @param state an XML node
+     */
+    def updateOrderStateFromNode(McmOrder order, orderNode) {
+        def state = orderNode.state
+        order.status = OrderStatus.findByName(state.state.text())
+        ['dateBought', 'datePaid', 'dateSent', 'dateReceived', 'dateCancelled'].each { dateField ->
+            def dateFieldValue = state."$dateField"?.text()
+            if (dateFieldValue) {
+                def dateFieldName = (dateField - 'date').toLowerCase()
+                order."${dateFieldName}" = dateFormat.parse(dateFieldValue)
+            }
+        }
+    }
+
+    Evaluation parseEvaluation(McmOrder order, evaluationNode) {
+        if (evaluationNode == null) {
+            return null
+        }
+        def evalValues = [:]
+        ['overall', 'articles', 'packaging', 'speed', 'comments'].each { evalField ->
+            evalValues.put(evalField, evaluationNode."$evalField"?.text())
+        }
+
+        def evaluation = new Evaluation()
+        if (order?.evaluation) {
+            // we already got an evaluation object, so we need to update it.
+            evaluation = order.evaluation
+        }
+        evaluation.properties = evalValues
+        evaluation.save()
+        return evaluation
+    }
+
+    ShippingMethod parseShippingMethod(shippingNode) {
+        def shippingMethod = ShippingMethod.findOrCreateWhere(name: shippingNode.name.text(),
+                price: priceToInt(shippingNode.price.text()))
+        shippingMethod.save()
+        log.debug("shippingMethod: ${shippingMethod}")
+        return shippingMethod
+    }
+
+    /**
+     * Convert a price string to an integer value.
+     * @param price an euro or dollar string, representing a positive decimal number, for example 0.02
+     * @return the value in cent as integer, for example input '0.02'  returns 2
+     */
+    Integer priceToInt(String price) {
+        //Note: GORM seems to parse a decimal string automatically to int, 
+        // but I cannot seem to find the docs for this,
+        // so I'd rather use my own implementation.
+        def withoutSpaceOrLeadingZero = price.replaceAll('^0|\\D+', '')
+        if (price == null || withoutSpaceOrLeadingZero.length() == 0) {
+            return 0
+        }
+        return Integer.valueOf(withoutSpaceOrLeadingZero)
+    }
 }
+

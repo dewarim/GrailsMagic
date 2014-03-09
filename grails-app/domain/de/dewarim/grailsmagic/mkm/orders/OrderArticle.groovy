@@ -1,4 +1,6 @@
-package de.dewarim.grailsmagic.mkm
+package de.dewarim.grailsmagic.mkm.orders
+
+import de.dewarim.grailsmagic.mkm.Article
 
 class OrderArticle {
 

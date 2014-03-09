@@ -15,6 +15,19 @@
 </g:if>
 <ul>
     <li>
+    Note: this currently order page downloads your "paid" orders only, that is: cards someone has bought from you
+        but which you have not shipped yet.
+    </li>
+    <li>
+     Note: current configuration will take a long while for the first download of anything.
+     </li>
+    <li>
+        Note: to initialize search mode, first download your for-sale list. This will setup
+        the games and languages lists.
+    </li>
+</ul>
+<ul>
+    <li>
         <g:link controller="mkm" action="updateStock">
             <g:message code="link.to.mkm.updateStock"/>
         </g:link>
@@ -23,6 +36,12 @@
         <g:link controller="mkm" action="showStock">
             <g:message code="link.to.mkm.showStock"/>
         </g:link>
+    </li>
+    <li>        
+        <g:link controller="mkm" action="showOrders">
+            <g:message code="link.to.orders"/>
+        </g:link>
+        <br>   
     </li>
 </ul>
 

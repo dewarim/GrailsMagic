@@ -1,4 +1,4 @@
-package de.dewarim.grailsmagic.mkm
+package de.dewarim.grailsmagic.mkm.orders
 
 class Evaluation {
 
