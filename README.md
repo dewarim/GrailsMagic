@@ -17,6 +17,7 @@ The software is very alpha - the project is very young and will likely see much 
 
 * Fetch your cards from magickartenmarkt.de
 * Store data along with images in a database.
+* Fetch your new orders and generate a checklist for sending physical cards
 
 ## TODO
 
