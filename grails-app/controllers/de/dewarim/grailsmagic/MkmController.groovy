@@ -21,7 +21,7 @@ class MkmController {
 
     def index() {
         def mkmConfig = createConfig(grailsApplication.config)
-        [games: Game.list(), missingApiKey: mkmConfig.apiKey == null]
+        [games: Game.list(), missingApiKey: mkmConfig.apiKey == null || mkmConfig.username == '--unknown--']
     }
 
     def showStock() {
