@@ -54,11 +54,7 @@ class MkmService {
                 [onlineStatus: ArticleStatus.ONLINE, seller: user]).toSet()
         log.debug("Current user's article list = ${currentArticleIdList.size()} articles.")
         def articles = parseArticles(config, xml, currentArticleIdList, user)
-        if (currentArticleIdList.size() > 0) {
-            Article.executeUpdate("update Article set status=:archiveStatus where id in (:idList)",
-                    [archiveStatus: ArticleStatus.ARCHIVE, idList: currentArticleIdList.toList()]
-            )
-        }
+        updateArticlesStatus(currentArticleIdList, ArticleStatus.ARCHIVE)
         return articles
     }
 
@@ -392,9 +388,26 @@ class MkmService {
         config.fetchAll = doFetchAll ?: false
         def result = doRequest(config, command)
         def xml = new XmlSlurper().parseText(result)
-        def articles = parseArticles(config, xml, null, null)
+        def product = fetchProduct(config, productId)
+        def currentArticleIdList = Article.executeQuery("select a.id from Article a where a.status =:onlineStatus and a.product=:product",
+                [onlineStatus: ArticleStatus.ONLINE, product:product]).toSet()
+        def articles = parseArticles(config, xml, currentArticleIdList, null)
+        updateArticlesStatus(currentArticleIdList, ArticleStatus.ARCHIVE)
         log.debug("getArticlesByProductId found ${articles.size()}")
         return articles
+    }
+
+    /**
+     * Update the status of a list of articles
+     * @param articles a set of article ids
+     * @param status the new ArticleStatus
+     */
+    def updateArticlesStatus(articles, ArticleStatus status){
+        if (articles?.size() > 0) {
+            Article.executeUpdate("update Article set status=:archiveStatus where id in (:idList)",
+                    [archiveStatus: status, idList: articles.toList()]
+            )
+        }
     }
 
     List<Article> parseArticles(MkmConfig config, xml, updateableArticleList, cardOwner) {
